@@ -1,0 +1,26 @@
+name: adversarial-alignment
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.6  # or whatever your CUDA version is
+  - tqdm
+  - numpy
+  - pandas
+  - matplotlib
+  - ipykernel
+  - jupyterlab
+  - wandb
+  - pip:
+      - torch-geometric
+      - torch-scatter
+      - torch-sparse
+      - torch-cluster
+      - torch-spline-conv

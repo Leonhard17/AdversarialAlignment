@@ -1,0 +1,41 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Data files
+*.txt
+*.pkl
+*.zip
+
+# WandB files
+wandb/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# PyTorch model files
+*.pt
+*.pth
+
+# Hugging Face Transformers models
+*.json
+*.safetensors
+
+# VSCode / PyCharm settings
+.vscode/
+.idea/
+.code-workspace
+AdversarialAlignment.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
