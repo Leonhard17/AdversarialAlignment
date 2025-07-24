@@ -46,7 +46,6 @@ def parse_args():
 
 
 def main():
-    print("Training FullAdversarialAlignmentModel with custom GNN and compressors")
     args = parse_args()
     
     n_iter   = secondary_model_config["num_iterations"]

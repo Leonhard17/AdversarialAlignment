@@ -16,7 +16,7 @@ from config                         import secondary_model_config
 from sweep_config                   import sweep_config
 
 # how many epochs per run
-num_epochs = 10
+num_epochs = 7
 
 def train():
     # this context manager sets up wandb.config for us
