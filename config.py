@@ -14,26 +14,40 @@ primary_model_config = {
     "n_embd": 768
 }
 
-# ----------------------
-# Secondary model config
-# ----------------------
-# This is the architecture which processes the attention graphs
-# from the primary model and learns to predict rewards or uncertainty.
-
+# -----------------------------------------------------------------------------
+# Secondary (reward‑predictor) model configuration
+# -----------------------------------------------------------------------------
+# This network reads the sequence of attention‑graph embeddings produced
+# by the primary GPT‑2 model over multiple decoding iterations, and predicts
+# a scalar “reward” (e.g. solution accuracy or uncertainty).
 secondary_model_config = {
-    "num_iterations": 5, # number of iterations of primary model output
-    "num_layers": primary_model_config["n_layer"],
-    "num_heads": primary_model_config["n_head"],
-    "gnn_hidden_dim": 16,
-    "gnn_embedding_dim": 8,
-    "compression_hidden_dim": 32,
-    "compression_dim": 4,
-    "agg_hidden_dim": 4,
-    "agg_heads": 2,
-    "agg_layers": 2,
-    "reward_hidden_dim": 24,
-    "reward_heads": 2,
-    "reward_layers": 2,
-    "reward_ff_dim": 64,
+    # How many decoding iterations (time‑steps) of attention graphs to process:
+    "num_iterations": 5,  
+
+    # Mirror the primary LLM’s architecture:
+    "num_layers": primary_model_config["n_layer"],   # e.g. 12 transformer layers
+    "num_heads":  primary_model_config["n_head"],    # e.g. 12 attention heads
+
+    # ─── GNN per head ─────────────────────────────────────────────────────────
+    "gnn_hidden_dim":    128,   # doubled from 64  
+    "gnn_embedding_dim": 64,    # doubled from 32  
+
+    # ─── Per-layer compressor MLP ────────────────────────────────────────────
+    "compression_hidden_dim": 512,  # doubled from 256  
+    "compression_dim":        128,  # doubled from 64   
+
+    # ─── Layer-aggregation transformer ────────────────────────────────────────
+    "agg_hidden_dim": 512,   # doubled from 256  
+    "agg_heads":      8,     # doubled from 4    
+    "agg_layers":     8,     # doubled from 4    
+
+    # ─── Reward-predictor transformer ────────────────────────────────────────
+    "reward_hidden_dim": 1024,   # doubled from 512  
+    "reward_heads":      16,     # doubled from 8    
+    "reward_layers":     12,     # doubled from 6    
+    "reward_ff_dim":     4096,   # doubled from 2048
+
+    # Dropout to regularize all Transformer & MLP layers
     "dropout": 0.1
 }
+

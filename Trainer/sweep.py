@@ -16,30 +16,32 @@ from config                         import secondary_model_config
 from sweep_config                   import sweep_config
 
 # how many epochs per run
-num_epochs = 2
-# fixed batch size
-batch_size = 32
+num_epochs = 10
 
 def train():
     # this context manager sets up wandb.config for us
     with wandb.init():
         config = wandb.config
 
+        # parameters for gradeint 
+        n_iter   = secondary_model_config["num_iterations"]
+        n_layer  = secondary_model_config["num_layers"]
+        n_head   = secondary_model_config["num_heads"]
+
         # 1) load data every run
         base = Path(__file__).resolve().parent.parent
         pkl_path = base / "AttentionDataset" / "data" / "attention_dataset.pkl"
         attentions, rewards = pickle.load(open(pkl_path, "rb"))
         loader = create_attention_loader(
-            attentions, rewards, batch_size=batch_size, shuffle=True
+            attentions, rewards, batch_size=config.batch_size, shuffle=True
         )
 
         # 2) merge sweep params into your model config
         model_cfg = secondary_model_config.copy()
-        model_cfg.update({
-            "compression_dim": config.compression_dim,
-            "agg_hidden_dim": config.agg_hidden_dim,
-            "dropout":         config.dropout,
-        })
+        # merge sweep config into model config
+        for key in list(model_cfg.keys()):
+            if key in config:      
+                model_cfg[key] = config[key]
 
         # 3) instantiate & move to device
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -71,10 +73,31 @@ def train():
                 epoch_loss += loss.item()
 
                 # backprop
-                # TODO: Grdient normalization
-                # Because using some models multiple times in a batch
                 optimizer.zero_grad()
                 loss.backward()
+
+                # Gradient normalization
+                # Because using some models multiple times in a batch
+                gnn_calls  = n_iter * n_layer * n_head
+                comp_calls = n_iter * n_layer
+                agg_calls = n_iter
+
+                # scale down GNN gradients
+                for p in model.gnn.parameters():
+                    if p.grad is not None:
+                        p.grad.data.div_(gnn_calls)
+
+                # scale down each compressor’s gradients
+                for compressor in model.compressors:
+                    for p in compressor.parameters():
+                        if p.grad is not None:
+                            p.grad.data.div_(comp_calls)
+
+                #scale down aggregation encoder gradients
+                for p in model.aggregation_encoder.parameters():
+                    if p.grad is not None:
+                        p.grad.data.div_(agg_calls)
+
                 optimizer.step()
 
                 # batch‐level logging
@@ -89,18 +112,15 @@ def train():
                                            if p.grad is not None)**0.5,
                 })
 
-            # epoch‐level
+            # epoch‐level checkpointing
             avg_loss = epoch_loss / len(loader)
             print(f"Epoch {epoch} — Avg Loss: {avg_loss:.6f}")
             wandb.log({"epoch_avg_loss": avg_loss})
-            # TODO: optionally save model checkpoint every epoch
-
-        # 5) final checkpoint for this run
-        final_ckpt = base / "alignment_models" / f"alignment_sweep_lr{config.lr}_drop{config.dropout}_cd{config.compression_dim}_ah{config.agg_hidden_dim}.pt"
-        torch.save(model.state_dict(), final_ckpt)
-        wandb.save(str(final_ckpt))
-
-
+            run_name = wandb.run.name 
+            ckpt_dir = base / "alignment_models" / f"{run_name}_epoch_{epoch}.pt"
+            torch.save(model.state_dict(), ckpt_dir)
+        
+        
 if __name__ == "__main__":
     # launch the sweep
     sweep_id = wandb.sweep(sweep_config, project="adversarial-alignment")

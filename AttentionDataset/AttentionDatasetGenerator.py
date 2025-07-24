@@ -4,8 +4,28 @@ import pickle
 import torch
 import pandas as pd
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
+import networkx as nx
+from torch_geometric.data import Data, Batch
+from torch_geometric.utils import from_networkx
 from typing import List, Tuple, Any
+from tqdm.auto import tqdm
 
+def attention_to_graph(attention: torch.Tensor) -> nx.DiGraph:
+    """
+    Convert a single-head attention matrix (seq_len × seq_len) into a directed graph.
+    Nodes are token positions with a 'weight' = self‑attention score.
+    Edges (i→j) exist for j < i, with 'weight' = attention[i, j].
+    """
+    seq_len = attention.size(-1)
+    G = nx.DiGraph()
+    # Add nodes
+    for i in range(seq_len):
+        G.add_node(i, weight=float(attention[i, i]))
+    # Add masked edges
+    for i in range(seq_len):
+        for j in range(i):
+            G.add_edge(i, j, weight=float(attention[i, j]))
+    return G
 
 def load_math_data(
     problems_path: Path,
@@ -93,7 +113,7 @@ def extract_number(text: str) -> str:
     pattern = r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?" # Regex for floating-point numbers
     match = re.search(pattern, text)
     if not match:
-        raise ValueError(f"No numeric value found in '{text}'")
+         raise ValueError(f"No numeric value found in '{text}'")
     return match.group(0)
 
 
@@ -111,20 +131,42 @@ def build_attention_dataset(
     attention_data: List[Any] = []
     reward_data: List[float] = []
 
-    for idx in range(min(num_samples, len(data))):
+    for idx in tqdm(range(min(num_samples, len(data))), desc="Generating attentions"):
         problem = data.iloc[idx, 0]
         true_solution = data.iloc[idx, 1]
         raw_text, attentions = generate_with_attentions(
             problem, tokenizer, model, device, max_new_tokens
         )
         ans_line = trim_solution(raw_text)
-        num_str = extract_number(ans_line)
-        diff = abs(float(num_str) - float(true_solution)) + 1e-6
-        reward = -torch.log(torch.tensor(diff)).item()
-        attention_data.append(attentions)
+        try:
+            num_str = extract_number(ans_line)
+            diff = abs(float(num_str) - float(true_solution)) + 1e-6
+            reward = -torch.log(torch.tensor(diff)).item()
+
+        except ValueError:
+            print(f"Skipping sample {idx}: No numeric value found in '{ans_line}'")
+            continue
+
+        # Convert once to torch_geometric.data.Data
+
+        sample_graphs = []
+        for step_attns in attentions:
+            layer_list: List[List[Batch]] = []
+            for layer_attn in step_attns:
+                # layer_attn: (1, num_heads, seq_len, seq_len)
+                heads = layer_attn.squeeze(0)
+                head_list: List[Batch] = []
+                for head_mat in heads:
+                    G = attention_to_graph(head_mat)
+                    pyg_data = from_networkx(G, group_node_attrs=["weight"], group_edge_attrs=["weight"])
+                    head_list.append(pyg_data)
+                layer_list.append(Batch.from_data_list(head_list))
+            sample_graphs.append(layer_list)
+        attention_data.append(sample_graphs)
         reward_data.append(reward)
 
     return attention_data, reward_data
+
 
 
 def save_attention_dataset(
@@ -148,7 +190,7 @@ def main() -> None:
         solutions_path=data_dir / "math_solutions.txt"
     )
     tokenizer, model, device = setup_model(
-        checkpoint_dir=BASE_DIR / "finetuned_models" / "finetuned_gpt2_epoch_3"
+        checkpoint_dir=BASE_DIR / "finetuned_models" / "finetuned_multiplication_gpt2_epoch_5"
     )
 
     print("Generating attention dataset...")
@@ -157,7 +199,7 @@ def main() -> None:
         tokenizer=tokenizer,
         model=model,
         device=device,
-        num_samples=100,
+        num_samples=4000,
         max_new_tokens=10
     )
 

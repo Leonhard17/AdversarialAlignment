@@ -80,7 +80,7 @@ def save_problems_and_solutions(
 
 def main() -> None:
     """
-    Example usage: generate and save 20000 problems and solutions.
+    Example usage: generate and save 200000 problems and solutions.
     """
     base_dir = Path(__file__).resolve().parent
     data_dir = base_dir / 'data'
@@ -89,9 +89,9 @@ def main() -> None:
 
     # Generate problems
     problems, solutions = generate_math_problems(
-        num_problems=20000,
-        operations=['+', '-', '*', '/'],
-        max_value=100,
+        num_problems=200000,
+        operations=['*'], # possible ['+', '-', '*', '/'], only * as easier learned by the model
+        max_value=300,
         seed=42
     )
 

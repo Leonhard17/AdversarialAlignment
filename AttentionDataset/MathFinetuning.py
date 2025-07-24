@@ -95,7 +95,7 @@ def finetune_model(
         history["val_loss"].append(val_loss)
 
         # 5) Save both tokenizer & model *after* each epoch
-        ckpt_dir = save_dir / f"finetuned_{base_model}_epoch_{epoch}"
+        ckpt_dir = save_dir / f"finetuned_multiplication_{base_model}_epoch_{epoch}"
         ckpt_dir.mkdir(exist_ok=True)
         tokenizer.save_pretrained(ckpt_dir)
         model.save_pretrained(ckpt_dir)
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         save_dir=save_dir,
         base_model="gpt2",
         batch_size=32,
-        num_epochs=3,
+        num_epochs=7,
         learning_rate=5e-5,
     )
     print("\nFine-tuning complete.")
